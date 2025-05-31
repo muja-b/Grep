@@ -1,4 +1,4 @@
-#include "grep.h"
+#include "../include/grep.h"
 #include <iostream>
 #include <string>
 #include <filesystem>
@@ -13,22 +13,11 @@ void printHelp()
               << "  -h, --help                Display help message\n";
 }
 
-bool match_pattern(const std::string& inputLine, const std::string& pattern) {
-    if (pattern == "/d") 
-    {
-        for(auto& i : inputLine)
-        {
-            if(std::isdigit(i)) return 1;
-        }
-        return 0;
-    }
-
-    if (pattern.length() == 1) {
-        return inputLine.find(pattern) != std::string::npos;
-    }
-    else {
-        throw std::runtime_error("Unhandled pattern " + pattern);
-    }
+const std::string readInput()
+{
+    std::string inputLine;
+    std::getline(std::cin, inputLine);
+    return inputLine;    
 }
 
 int main(int argc, char* argv[]) 
@@ -36,8 +25,9 @@ int main(int argc, char* argv[])
     // Flush after every op
     std::cout << std::unitbuf;
     std::cerr << std::unitbuf;
-    std::string inputLine;
-    std::getline(std::cin, inputLine);
+
+    const auto inputLine = readInput();
+    grep grep_cmd(false,false,false);
 
     if (argc != 3) {
         std::cerr << "Expected two arguments" << std::endl;
@@ -53,7 +43,7 @@ int main(int argc, char* argv[])
     }
 
     try {
-        if (match_pattern(inputLine, pattern)) {
+        if (grep_cmd.search(inputLine, pattern)) {
             std::cerr << "Pattern Found" << std::endl;
             return 0;
         } else {
