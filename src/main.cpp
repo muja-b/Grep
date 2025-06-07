@@ -22,11 +22,11 @@ int main(int argc, char* argv[])
     options.add_options()
         ("h,help", "Display help message")
         ("i,insensitive-case", "Ignore case sensivity", cxxopts::value<bool>()->default_value("false"))
-        ("r,recursive", "Recursive search", cxxopts::value<bool>()->default_value("false"))
+        ("r,recursive", "Recursive search", cxxopts::value<bool>()->default_value("true"))
         ("n,line-number", "Prefix each line with its number", cxxopts::value<bool>()->default_value("false"))
         ("w,word-regex","Match whole words", cxxopts::value<bool>()->default_value("false"))
         ("p,pattern","Pattern to search for",cxxopts::value<std::string>())
-        ("f,files","Files to search in",cxxopts::value<std::vector<std::string>>());
+        ("d,dirs","Directories to search in",cxxopts::value<std::vector<std::string>>());
 
     try 
     {
@@ -55,21 +55,36 @@ int main(int argc, char* argv[])
         bool invertMatch = result.count("v");
         bool matchWholeWord = result.count("w");
         std::string pattern = result["pattern"].as<std::string>();
-        std::vector<std::string> files = result["files"].as<std::vector<std::string>>();
+        std::vector<std::string> dirs = result["dirs"].as<std::vector<std::string>>();
         
         std::cout << "Creating grep command..." << std::endl;
         std::cout.flush();
         
         grep grep_cmd(caseSensitive, recursive, showLines, matchWholeWord);
-        std::cout << "Enter text to search (press Enter when done): " << std::endl;
-        std::cout.flush();
         
-        const auto inputLine = readInput();
         std::cout << "Searching for pattern: " << pattern << std::endl;
         std::cout.flush();
         
-        if (grep_cmd.search(inputLine, pattern)) {
-            std::cout << "Pattern Found" << std::endl;
+        std::cout << "Counting files in spicified Dir : " << std::endl;
+        std::vector<std::filesystem::path> files;
+        std::vector<std::string> results;
+        for (const auto& d : dirs) 
+        {
+            auto foundFiles = grep_cmd.traverseFiles(d, pattern);
+            files.insert(files.end(), foundFiles.begin(), foundFiles.end());
+        }
+        for (const auto& file : files) 
+        {
+            auto res = grep_cmd.searchInFile(file, pattern);
+            if (res.second)results.push_back(res.first);
+        }
+        std::cout << "Searching completed." << std::endl;
+        if (!results.empty()) 
+        {
+            for (const auto& result : results) 
+            {
+                std::cout << result << std::endl;
+            }
         } else {
             std::cout << "Pattern not found" << std::endl;
         }
