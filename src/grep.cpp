@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <regex>
 #include "../include/grep.h"
 #include "grep.h"
 
@@ -15,39 +16,33 @@ bool containsWholeWord(const std::string& inputLine, const std::string& pattern)
 
 bool grep::search(const std::string& inputLine, const std::string& pattern)
 {
-    if (m_matchWholeWord) 
+    if (m_matchWholeWord && containsWholeWord(inputLine, pattern)) 
     {
-        return containsWholeWord(inputLine, pattern);
-    }
-    else if (pattern == "/d") 
-    {
-        for (auto& i : inputLine)
-        {
-            if (std::isdigit(i)) return true;
-        }
-        return false;
-    }
-    else if (pattern == "/w")
-    {
-        for (auto& c : inputLine)
-            if (!std::isalnum(c) && c != '_') return false;
         return true;
     }
-    else if (m_caseSensitive)
+    else if (m_caseSensitive && (inputLine.find(pattern) != std::string::npos))
     {
-        return inputLine.find(pattern) != std::string::npos;
+        return true;
     }
-    else if (pattern.length() == 1) {
+    else {
         std::string lowerInput = inputLine, lowerPattern = pattern;
         std::transform(lowerInput.begin(), lowerInput.end(), lowerInput.begin(), ::tolower);
         std::transform(lowerPattern.begin(), lowerPattern.end(), lowerPattern.begin(), ::tolower);
-        return lowerInput.find(lowerPattern) != std::string::npos;
+        if(lowerInput.find(lowerPattern) != std::string::npos)
+        {
+            return true;
+        }
     }
-    else 
+    std::regex_constants::syntax_option_type regexFlags = std::regex_constants::ECMAScript;
+    if (!m_caseSensitive) {
+        regexFlags |= std::regex_constants::icase;
+    }
+    std::regex regexPattern(pattern, regexFlags);
+    if (std::regex_search(inputLine, regexPattern)) 
     {
-        throw std::runtime_error("Unhandled pattern " + pattern);
+        return true;
     }
-    return true;
+    return false;
 }
 
 std::vector<std::filesystem::path> grep::traverseFiles(const std::string& directoryPath, const std::string& pattern)
