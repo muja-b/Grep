@@ -1,6 +1,8 @@
 #include "../include/grep.h"
 #include <iostream>
 #include <string>
+#include <vector>
+#include <algorithm>
 #include "cxxopts.hpp"
 #include <filesystem> // Uncomment this line to use <filesystem> in the future
 

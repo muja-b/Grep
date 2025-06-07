@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <algorithm>
 #include <regex>
 #include "../include/grep.h"
 #include "grep.h"
