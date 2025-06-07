@@ -1,17 +1,8 @@
 #include "../include/grep.h"
 #include <iostream>
 #include <string>
-#include <filesystem>
-
-void printHelp() 
-{
-    std::cout << "Usage: grep [options] pattern {file/directory}\n"
-              << "Options:\n"
-              << "  -i, --insensitive-case    Ignore case sensivity\n"
-              << "  -r, --recursive           Recursively search\n"
-              << "  -n, --line-number         Prefix each line with its number\n"
-              << "  -h, --help                Display help message\n";
-}
+#include "cxxopts.hpp"
+#include <filesystem> // Uncomment this line to use <filesystem> in the future
 
 const std::string readInput()
 {
@@ -22,36 +13,76 @@ const std::string readInput()
 
 int main(int argc, char* argv[]) 
 {
-    // Flush after every op
-    std::cout << std::unitbuf;
-    std::cerr << std::unitbuf;
+    // Force output buffering
+    std::cout.setf(std::ios::unitbuf);
+    std::cerr.setf(std::ios::unitbuf);
+    
+    cxxopts::Options options("grep", "Search for a pattern in a file or directory");
+    
+    options.add_options()
+        ("h,help", "Display help message")
+        ("i,insensitive-case", "Ignore case sensivity", cxxopts::value<bool>()->default_value("false"))
+        ("r,recursive", "Recursive search", cxxopts::value<bool>()->default_value("false"))
+        ("n,line-number", "Prefix each line with its number", cxxopts::value<bool>()->default_value("false"))
+        ("w,word-regex","Match whole words", cxxopts::value<bool>()->default_value("false"))
+        ("p,pattern","Pattern to search for",cxxopts::value<std::string>())
+        ("f,files","Files to search in",cxxopts::value<std::vector<std::string>>());
 
-    const auto inputLine = readInput();
-    grep grep_cmd(false,false,false);
-
-    if (argc != 3) {
-        std::cerr << "Expected two arguments" << std::endl;
-        return 1;
-    }
-
-    std::string flag = argv[1];
-    std::string pattern = argv[2];
-
-    if (flag != "-i") {
-        std::cerr << "Expected first argument to be '-i'" << std::endl;
-        return 1;
-    }
-
-    try {
-        if (grep_cmd.search(inputLine, pattern)) {
-            std::cerr << "Pattern Found" << std::endl;
+    try 
+    {
+        std::cout << "Parsing arguments..." << std::endl;
+        std::cout.flush();
+        
+        auto result = options.parse(argc, argv);
+        
+        if (result.count("help")) {
+            std::cout << options.help() << std::endl;
             return 0;
-        } else {
-            std::cerr << "Pattern not found" << std::endl;
+        }
+
+        if (!result.count("pattern")) {
+            std::cout << "Error: Pattern is required" << std::endl;
+            std::cout << options.help() << std::endl;
             return 1;
         }
-    } catch (const std::runtime_error& e) {
-        std::cerr << e.what() << std::endl;
+
+        std::cout << "Getting options..." << std::endl;
+        std::cout.flush();
+
+        bool caseSensitive = !result.count("i");
+        bool recursive = result.count("r");
+        bool showLines = result.count("n");
+        bool invertMatch = result.count("v");
+        bool matchWholeWord = result.count("w");
+        std::string pattern = result["pattern"].as<std::string>();
+        std::vector<std::string> files = result["files"].as<std::vector<std::string>>();
+        
+        std::cout << "Creating grep command..." << std::endl;
+        std::cout.flush();
+        
+        grep grep_cmd(caseSensitive, recursive, showLines, matchWholeWord);
+        std::cout << "Enter text to search (press Enter when done): " << std::endl;
+        std::cout.flush();
+        
+        const auto inputLine = readInput();
+        std::cout << "Searching for pattern: " << pattern << std::endl;
+        std::cout.flush();
+        
+        if (grep_cmd.search(inputLine, pattern)) {
+            std::cout << "Pattern Found" << std::endl;
+        } else {
+            std::cout << "Pattern not found" << std::endl;
+        }
+        std::cout << "Search completed." << std::endl;
+        return 0;
+    }
+    catch(const std::exception& e)
+    {
+        std::cout << "Error parsing options: " << e.what() << std::endl;
+        std::cout << options.help() << std::endl;
+        std::cout << "Press Enter to exit..." << std::endl;
+        std::cout.flush();
+        std::cin.get();
         return 1;
     }
-} 
+}

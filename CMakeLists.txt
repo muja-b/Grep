@@ -18,11 +18,20 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
+# Fetch cxxopts
+FetchContent_Declare(
+    cxxopts
+    GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
+    GIT_TAG v3.1.0
+)
+FetchContent_MakeAvailable(cxxopts)
+
 # Main executable
 add_executable(grep
     src/main.cpp
     src/grep.cpp
 )
+target_link_libraries(grep PRIVATE cxxopts::cxxopts)
 
 target_include_directories(grep
     PUBLIC
@@ -47,4 +56,4 @@ target_link_libraries(grepTest
 
 # Add tests
 include(GoogleTest)
-gtest_discover_tests(grepTest) 
+gtest_discover_tests(grepTest)
