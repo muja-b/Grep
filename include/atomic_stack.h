@@ -3,6 +3,8 @@
 #include <mutex>
 #include <optional>
 #include <filesystem>
+#include <unordered_set>
+#include <system_error>
 
 struct message {
     std::filesystem::path value;
@@ -14,7 +16,16 @@ class AtomicStack {
 public:
     void push(const message& value) {
         std::lock_guard<std::mutex> lock(m_mutex);
-        m_stack.push(value);
+        std::error_code ec;
+        auto canonical = std::filesystem::canonical(value.value, ec);
+        if (ec) return;
+        size_t hash = std::hash<std::string>{}(canonical.string());
+        if (m_seen_hashes.insert(hash).second) 
+        {
+            m_stack.push(value);
+            return;
+        }
+        return;
     }
 
     std::optional<message> pop() {
@@ -28,4 +39,5 @@ public:
 private:
     std::stack<message> m_stack;
     std::mutex m_mutex;
+    std::unordered_set<size_t> m_seen_hashes;
 };
