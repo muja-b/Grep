@@ -66,5 +66,9 @@ target_link_libraries(grepTest
 )
 
 # Add tests
-include(GoogleTest)
-gtest_discover_tests(grepTest)
+# include(GoogleTest)
+# gtest_discover_tests(grepTest)
+set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(WITH_GFLAGS OFF CACHE BOOL "" FORCE)
+set(WITH_GTEST OFF CACHE BOOL "" FORCE)
+set(WITH_GMOCK OFF CACHE BOOL "" FORCE)

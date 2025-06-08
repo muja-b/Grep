@@ -34,21 +34,21 @@ bool grep::search(const std::string& inputLine, const std::string& pattern)
             return true;
         }
     }
-    std::regex_constants::syntax_option_type regexFlags = std::regex_constants::ECMAScript;
-    if (!m_caseSensitive) {
-        regexFlags |= std::regex_constants::icase;
-    }
-    std::regex regexPattern(pattern, regexFlags);
-    if (std::regex_search(inputLine, regexPattern)) 
-    {
-        return true;
+    try {
+        std::regex_constants::syntax_option_type flags = std::regex_constants::ECMAScript;
+        if (!m_caseSensitive) flags |= std::regex_constants::icase;
+        std::regex re(pattern, flags);
+        return std::regex_search(inputLine, re);
+    } catch (const std::regex_error& e) {
+        std::cerr << "Invalid regex pattern: " << e.what() << std::endl;
+        return false;
     }
     return false;
 }
 
-std::vector<const std::filesystem::path> grep::traverseFiles(const std::string& directoryPath)
+std::vector<std::filesystem::path> grep::traverseFiles(const std::filesystem::path& directoryPath)
 {
-    std::vector<const std::filesystem::path> files;
+    std::vector<std::filesystem::path> files;
     auto it = std::filesystem::recursive_directory_iterator(directoryPath);
     if (!m_recursive)
     {
@@ -64,9 +64,9 @@ std::vector<const std::filesystem::path> grep::traverseFiles(const std::string& 
     return files;
 }
 
-std::vector<const std::string> grep::searchInFile(const std::filesystem::path& filePath, const std::string& pattern)
+std::vector<std::string> grep::searchInFile(const std::filesystem::path& filePath, const std::string& pattern)
 {
-    auto result = std::vector<const std::string>{""};
+    auto result = std::vector<std::string>{};
     std::ifstream file(filePath);
     if (!file.is_open())
     {

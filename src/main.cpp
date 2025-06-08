@@ -5,6 +5,8 @@
 #include <algorithm>
 #include "cxxopts.hpp"
 #include <filesystem>
+#include <unordered_set>
+#include <glog/logging.h>
 
 const std::string readInput()
 {
@@ -18,6 +20,7 @@ int main(int argc, char* argv[])
     // Force output buffering
     std::cout.setf(std::ios::unitbuf);
     std::cerr.setf(std::ios::unitbuf);
+    google::InitGoogleLogging(argv[0]);
     
     cxxopts::Options options("grep", "Search for a pattern in a file or directory");
     
@@ -28,15 +31,18 @@ int main(int argc, char* argv[])
         ("n,line-number", "Prefix each line with its number", cxxopts::value<bool>()->default_value("false"))
         ("w,word-regex","Match whole words", cxxopts::value<bool>()->default_value("false"))
         ("p,pattern","Pattern to search for",cxxopts::value<std::string>())
-        ("d,dirs","Directories to search in",cxxopts::value<std::vector<std::string>>()->default_value({"."}));
+        ("di,dirs","Directories to search in",cxxopts::value<std::vector<std::string>>()->default_value({"."}))
+        ("d,debug-mode","enable dubug messages", cxxopts::value<bool>()->default_value("false"));
 
     try 
     {
-        std::cout << "Parsing arguments..." << std::endl;
+        VLOG(1) << "Detailed debug info";
+
         std::cout.flush();
         
         auto result = options.parse(argc, argv);
-        
+        bool debugMode = result["debug-mode"].as<bool>();
+        VLOG(1, debugMode) << "Parsing arguments...";
         if (result.count("help")) {
             std::cout << options.help() << std::endl;
             return 0;
@@ -48,8 +54,7 @@ int main(int argc, char* argv[])
             return 1;
         }
 
-        std::cout << "Getting options..." << std::endl;
-        std::cout.flush();
+        VLOG(1, debugMode) << "Getting options...";
 
         bool caseSensitive = !result.count("i");
         bool recursive = result.count("r");
@@ -59,15 +64,13 @@ int main(int argc, char* argv[])
         std::string pattern = result["pattern"].as<std::string>();
         std::vector<std::string> dirs = result["dirs"].as<std::vector<std::string>>();
         
-        std::cout << "Creating grep command..." << std::endl;
-        std::cout.flush();
+        VLOG(1, debugMode) << "Creating grep command...";
         
         grep grep_cmd(caseSensitive, recursive, showLines, matchWholeWord);
         
-        std::cout << "Searching for pattern: " << pattern << std::endl;
-        std::cout.flush();
+        VLOG(1, debugMode) << "Searching for pattern: " << pattern;
         
-        std::cout << "Counting files in specified Dirs : " << std::endl;
+        VLOG(1, debugMode) << "Counting files in specified Dirs : ";
         std::unordered_set<std::filesystem::path> files;
         std::vector<std::string> results;
         for (const auto& d : dirs) 
@@ -82,7 +85,7 @@ int main(int argc, char* argv[])
             auto fileResults = grep_cmd.searchInFile(file, pattern);
             for(auto i : fileResults ) results.push_back(i);
         }
-        std::cout << "Searching completed." << std::endl;
+        VLOG(1, debugMode) << "Searching completed.";
         if (!results.empty()) 
         {
             for (const auto& result : results) 
@@ -90,18 +93,15 @@ int main(int argc, char* argv[])
                 std::cout << result << std::endl;
             }
         } else {
-            std::cout << "Pattern not found" << std::endl;
+            VLOG(1, debugMode) << "Pattern not found";
         }
-        std::cout << "Search completed." << std::endl;
+        VLOG(1, debugMode) << "Search completed.";
         return 0;
     }
     catch(const std::exception& e)
     {
         std::cout << "Error parsing options: " << e.what() << std::endl;
         std::cout << options.help() << std::endl;
-        std::cout << "Press Enter to exit..." << std::endl;
-        std::cout.flush();
-        std::cin.get();
         return 1;
     }
 }
