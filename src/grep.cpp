@@ -46,9 +46,9 @@ bool grep::search(const std::string& inputLine, const std::string& pattern)
     return false;
 }
 
-std::vector<std::filesystem::path> grep::traverseFiles(const std::string& directoryPath, const std::string& pattern)
+std::vector<const std::filesystem::path> grep::traverseFiles(const std::string& directoryPath)
 {
-    std::vector<std::filesystem::path> files;
+    std::vector<const std::filesystem::path> files;
     auto it = std::filesystem::recursive_directory_iterator(directoryPath);
     if (!m_recursive)
     {
@@ -64,20 +64,21 @@ std::vector<std::filesystem::path> grep::traverseFiles(const std::string& direct
     return files;
 }
 
-std::pair<std::string, bool> grep::searchInFile(const std::filesystem::path& filePath, const std::string& pattern)
+std::vector<const std::string> grep::searchInFile(const std::filesystem::path& filePath, const std::string& pattern)
 {
+    auto result = std::vector<const std::string>{""};
     std::ifstream file(filePath);
     if (!file.is_open())
     {
         std::cerr << "Could not open file: " << filePath << std::endl;
-        return std::pair("", false);
+        return result;
     }
     std::string line;
     int lineNumber = 1;
     if (m_matchWholeWord && pattern.length() < 2)
     {
         std::cerr << "Pattern must be at least 2 characters long for whole word search." << std::endl;
-        return std::pair("", false);
+        return result;
     }
     while (std::getline(file, line))
     {
@@ -87,12 +88,13 @@ std::pair<std::string, bool> grep::searchInFile(const std::filesystem::path& fil
             ss << filePath << ": " << line << std::endl;
             if(m_showLines)
                 ss << " -line ::" << lineNumber++ << std::endl;
-            return std::pair(ss.str(), true);
+            result.push_back(ss.str());
         }
         lineNumber++;
     }
     file.close();
-    std::cerr << "Pattern not found in file: " << filePath << std::endl;
-    return std::pair("", false);
+    if(result.empty())
+        std::cerr << "Pattern not found in file: " << filePath << std::endl;
+    return result;
 }
 

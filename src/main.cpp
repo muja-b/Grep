@@ -4,7 +4,7 @@
 #include <vector>
 #include <algorithm>
 #include "cxxopts.hpp"
-#include <filesystem> // Uncomment this line to use <filesystem> in the future
+#include <filesystem>
 
 const std::string readInput()
 {
@@ -28,7 +28,7 @@ int main(int argc, char* argv[])
         ("n,line-number", "Prefix each line with its number", cxxopts::value<bool>()->default_value("false"))
         ("w,word-regex","Match whole words", cxxopts::value<bool>()->default_value("false"))
         ("p,pattern","Pattern to search for",cxxopts::value<std::string>())
-        ("d,dirs","Directories to search in",cxxopts::value<std::vector<std::string>>());
+        ("d,dirs","Directories to search in",cxxopts::value<std::vector<std::string>>()->default_value({"."}));
 
     try 
     {
@@ -67,18 +67,20 @@ int main(int argc, char* argv[])
         std::cout << "Searching for pattern: " << pattern << std::endl;
         std::cout.flush();
         
-        std::cout << "Counting files in spicified Dir : " << std::endl;
-        std::vector<std::filesystem::path> files;
+        std::cout << "Counting files in specified Dirs : " << std::endl;
+        std::unordered_set<std::filesystem::path> files;
         std::vector<std::string> results;
         for (const auto& d : dirs) 
         {
-            auto foundFiles = grep_cmd.traverseFiles(d, pattern);
-            files.insert(files.end(), foundFiles.begin(), foundFiles.end());
+            auto foundFiles = grep_cmd.traverseFiles(d);
+            for (const auto& f : foundFiles) {
+                files.insert(f);
+            }
         }
         for (const auto& file : files) 
         {
-            auto res = grep_cmd.searchInFile(file, pattern);
-            if (res.second)results.push_back(res.first);
+            auto fileResults = grep_cmd.searchInFile(file, pattern);
+            for(auto i : fileResults ) results.push_back(i);
         }
         std::cout << "Searching completed." << std::endl;
         if (!results.empty()) 
