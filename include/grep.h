@@ -10,7 +10,7 @@ public:
     grep(bool caseSensitive, bool recursive, bool showLines, bool matchWholeWord)
         : m_caseSensitive(caseSensitive), m_recursive(recursive), m_showLines(showLines), m_matchWholeWord(matchWholeWord) {}
     bool search(const std::string& inputLine, const std::string& pattern);
-    std::vector<std::filesystem::path> traverseFiles(const std::filesystem::path& directoryPath, Atomic_stack& fileStack);
+    void traverseFiles(const std::filesystem::path& directoryPath, AtomicStack& fileStack);
     std::vector<std::string> searchInFile(const std::filesystem::path& filePath, const std::string& pattern);
 
 private:

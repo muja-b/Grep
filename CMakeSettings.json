@@ -1,0 +1,15 @@
+# Example CMake toolchain file for Windows with Clang
+
+# Set the C and C++ compilers
+set(CMAKE_C_COMPILER "C:/Program Files/LLVM/bin/clang.exe" CACHE FILEPATH "C compiler")
+set(CMAKE_CXX_COMPILER "C:/Program Files/LLVM/bin/clang++.exe" CACHE FILEPATH "C++ compiler")
+
+# Set the system name (optional, usually auto-detected)
+set(CMAKE_SYSTEM_NAME Windows)
+
+# Set the C++ standard
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# (Optional) Set additional flags
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")

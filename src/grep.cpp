@@ -7,7 +7,7 @@
 #include <regex>
 #include "../include/grep.h"
 #include "grep.h"
-#include "../include/AtomicStack.h"
+#include "../include/atomic_stack.h"
 
 bool containsWholeWord(const std::string& inputLine, const std::string& pattern)
 {
