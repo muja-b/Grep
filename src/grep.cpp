@@ -87,8 +87,6 @@ std::vector<std::string> grep::searchInFile(const std::filesystem::path& filePat
         lineNumber++;
     }
     file.close();
-    if(result.empty())
-        std::cerr << "Pattern not found in file: " << filePath << std::endl;
     return result;
 }
 

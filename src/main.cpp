@@ -16,26 +16,6 @@ const std::string readInput()
     return inputLine;    
 }
 
-void produce_files(const std::vector<std::string>& dirs, grep& grep_cmd, AtomicStack& fileStack) {
-    for (const auto& d : dirs) {
-        auto foundFiles = grep_cmd.traverseFiles(d);
-        for (const auto& f : foundFiles) {
-            fileStack.push({f});
-        }
-    }
-}
-
-void consume_files(AtomicStack& fileStack, grep& grep_cmd, const std::string& pattern, std::vector<std::string>& results) {
-    while (true) {
-        auto msgOpt = fileStack.pop();
-        if (!msgOpt.has_value()) break; // Stack empty, producer done
-        auto fileResults = grep_cmd.searchInFile(msgOpt->value, pattern);
-        for (const auto& line : fileResults) {
-            results.push_back(line);
-        }
-    }
-}
-
 int main(int argc, char* argv[]) 
 {
     // Force output buffering
@@ -85,8 +65,6 @@ int main(int argc, char* argv[])
         VLOG(1, debugMode) << "Creating grep command...";
         grep grep_cmd(caseSensitive, recursive, showLines, matchWholeWord);
         VLOG(1, debugMode) << "Searching for pattern: " << pattern;
-        VLOG(1, debugMode) << "Counting files in specified Dirs : ";
-
         AtomicStack fileStack;
 
         // Producer thread: traverse files and push to stack
