@@ -33,6 +33,17 @@ add_executable(grep
 )
 target_link_libraries(grep PRIVATE cxxopts::cxxopts)
 
+#fetch glog
+# Note: Ensure you have the glog library available in your environment or adjust the version as needed.
+FetchContent_Declare(
+    glog
+    GIT_REPOSITORY https://github.com/google/glog.git
+    GIT_TAG v0.7.0
+)
+FetchContent_MakeAvailable(glog)
+
+target_link_libraries(grep PRIVATE glog::glog)
+
 target_include_directories(grep
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
