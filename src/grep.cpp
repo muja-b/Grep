@@ -7,6 +7,7 @@
 #include <regex>
 #include "../include/grep.h"
 #include "grep.h"
+#include "../include/AtomicStack.h"
 
 bool containsWholeWord(const std::string& inputLine, const std::string& pattern)
 {
@@ -46,9 +47,8 @@ bool grep::search(const std::string& inputLine, const std::string& pattern)
     return false;
 }
 
-std::vector<std::filesystem::path> grep::traverseFiles(const std::filesystem::path& directoryPath)
+void grep::traverseFiles(const std::filesystem::path& directoryPath, AtomicStack& fileStack)
 {
-    std::vector<std::filesystem::path> files;
     auto it = std::filesystem::recursive_directory_iterator(directoryPath);
     if (!m_recursive)
     {
@@ -58,10 +58,9 @@ std::vector<std::filesystem::path> grep::traverseFiles(const std::filesystem::pa
     {
         if (entry.is_regular_file())
         {
-            files.push_back(entry.path());
+            fileStack.push(message{entry.path()});
         }
     }
-    return files;
 }
 
 std::vector<std::string> grep::searchInFile(const std::filesystem::path& filePath, const std::string& pattern)
@@ -75,11 +74,6 @@ std::vector<std::string> grep::searchInFile(const std::filesystem::path& filePat
     }
     std::string line;
     int lineNumber = 1;
-    if (m_matchWholeWord && pattern.length() < 2)
-    {
-        std::cerr << "Pattern must be at least 2 characters long for whole word search." << std::endl;
-        return result;
-    }
     while (std::getline(file, line))
     {
         if (search(line, pattern))
@@ -87,7 +81,7 @@ std::vector<std::string> grep::searchInFile(const std::filesystem::path& filePat
             std::ostringstream ss;
             ss << filePath << ": " << line << std::endl;
             if(m_showLines)
-                ss << " -line ::" << lineNumber++ << std::endl;
+                ss << " -line ::" << lineNumber << std::endl;
             result.push_back(ss.str());
         }
         lineNumber++;

@@ -1,4 +1,5 @@
 #include "../include/grep.h"
+#include "../include/atomic_stack.h"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -15,6 +16,26 @@ const std::string readInput()
     return inputLine;    
 }
 
+void produce_files(const std::vector<std::string>& dirs, grep& grep_cmd, AtomicStack& fileStack) {
+    for (const auto& d : dirs) {
+        auto foundFiles = grep_cmd.traverseFiles(d);
+        for (const auto& f : foundFiles) {
+            fileStack.push({f});
+        }
+    }
+}
+
+void consume_files(AtomicStack& fileStack, grep& grep_cmd, const std::string& pattern, std::vector<std::string>& results) {
+    while (true) {
+        auto msgOpt = fileStack.pop();
+        if (!msgOpt.has_value()) break; // Stack empty, producer done
+        auto fileResults = grep_cmd.searchInFile(msgOpt->value, pattern);
+        for (const auto& line : fileResults) {
+            results.push_back(line);
+        }
+    }
+}
+
 int main(int argc, char* argv[]) 
 {
     // Force output buffering
@@ -23,7 +44,6 @@ int main(int argc, char* argv[])
     google::InitGoogleLogging(argv[0]);
     
     cxxopts::Options options("grep", "Search for a pattern in a file or directory");
-    
     options.add_options()
         ("h,help", "Display help message")
         ("i,insensitive-case", "Ignore case sensivity", cxxopts::value<bool>()->default_value("false"))
@@ -37,8 +57,6 @@ int main(int argc, char* argv[])
     try 
     {
         VLOG(1) << "Detailed debug info";
-
-        std::cout.flush();
         
         auto result = options.parse(argc, argv);
         bool debugMode = result["debug-mode"].as<bool>();
@@ -65,36 +83,37 @@ int main(int argc, char* argv[])
         std::vector<std::string> dirs = result["dirs"].as<std::vector<std::string>>();
         
         VLOG(1, debugMode) << "Creating grep command...";
-        
         grep grep_cmd(caseSensitive, recursive, showLines, matchWholeWord);
-        
         VLOG(1, debugMode) << "Searching for pattern: " << pattern;
-        
         VLOG(1, debugMode) << "Counting files in specified Dirs : ";
-        std::unordered_set<std::filesystem::path> files;
-        std::vector<std::string> results;
-        for (const auto& d : dirs) 
-        {
-            auto foundFiles = grep_cmd.traverseFiles(d);
-            for (const auto& f : foundFiles) {
-                files.insert(f);
+
+        AtomicStack fileStack;
+
+        // Producer thread: traverse files and push to stack
+        std::thread producer([&] {
+            for (const auto& d : dirs) {
+                grep_cmd.traverseFiles(d, fileStack);
             }
-        }
-        for (const auto& file : files) 
-        {
-            auto fileResults = grep_cmd.searchInFile(file, pattern);
-            for(auto i : fileResults ) results.push_back(i);
-        }
-        VLOG(1, debugMode) << "Searching completed.";
-        if (!results.empty()) 
-        {
-            for (const auto& result : results) 
-            {
-                std::cout << result << std::endl;
+            // Signal consumer to stop (poison pill)
+            fileStack.push({"", true});
+        });
+
+        // Consumer thread: pop files and search
+        std::thread consumer([&] {
+            while (true) {
+                auto msgOpt = fileStack.pop();
+                if (!msgOpt.has_value() || msgOpt->self_destruct) break;
+                auto fileResults = grep_cmd.searchInFile(msgOpt->value, pattern);
+                for (const auto& line : fileResults) {
+                    std::cout << line << std::endl;
+                }
             }
-        } else {
-            VLOG(1, debugMode) << "Pattern not found";
-        }
+        });
+
+        producer.join();
+        consumer.join();
+
+        VLOG(1, debugMode) << "Producer and consumer threads completed.";
         VLOG(1, debugMode) << "Search completed.";
         return 0;
     }
