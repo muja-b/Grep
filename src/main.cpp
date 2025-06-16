@@ -8,7 +8,6 @@
 #include "cxxopts.hpp"
 #include <filesystem>
 #include <unordered_set>
-#include <glog/logging.h>
 
 const std::string readInput()
 {
@@ -22,7 +21,6 @@ int main(int argc, char* argv[])
     // Force output buffering
     std::cout.setf(std::ios::unitbuf);
     std::cerr.setf(std::ios::unitbuf);
-    // google::InitGoogleLogging(argv[0]);
     
     cxxopts::Options options("grep", "Search for a pattern in a file or directory");
     options.add_options()
@@ -32,16 +30,19 @@ int main(int argc, char* argv[])
         ("n,line-number", "Prefix each line with its number", cxxopts::value<bool>()->default_value("false"))
         ("w,word-regex","Match whole words", cxxopts::value<bool>()->default_value("false"))
         ("p,pattern","Pattern to search for",cxxopts::value<std::string>())
-        ("di,dirs","Directories to search in",cxxopts::value<std::vector<std::string>>()->default_value({"."}))
-        ("d,debug-mode","enable dubug messages", cxxopts::value<bool>()->default_value("false"));
+        ("dirs","Directories to search in",cxxopts::value<std::vector<std::string>>()->default_value({"."}))
+        ("d,debug-mode","enable debug messages", cxxopts::value<bool>()->default_value("false"));
 
     try 
     {
-        VLOG(1) << "Detailed debug info";
-        
         auto result = options.parse(argc, argv);
         bool debugMode = result["debug-mode"].as<bool>();
-        VLOG(1, debugMode) << "Parsing arguments...";
+        
+        if (debugMode) {
+            std::cout << "Detailed debug info" << std::endl;
+            std::cout << "Parsing arguments..." << std::endl;
+        }
+
         if (result.count("help")) {
             std::cout << options.help() << std::endl;
             return 0;
@@ -53,7 +54,9 @@ int main(int argc, char* argv[])
             return 1;
         }
 
-        VLOG(1, debugMode) << "Getting options...";
+        if (debugMode) {
+            std::cout << "Getting options..." << std::endl;
+        }
 
         bool caseSensitive = !result.count("i");
         bool recursive = result.count("r");
@@ -63,9 +66,12 @@ int main(int argc, char* argv[])
         std::string pattern = result["pattern"].as<std::string>();
         std::vector<std::string> dirs = result["dirs"].as<std::vector<std::string>>();
         
-        VLOG(1, debugMode) << "Creating grep command...";
+        if (debugMode) {
+            std::cout << "Creating grep command..." << std::endl;
+            std::cout << "Searching for pattern: " << pattern << std::endl;
+        }
+
         grep grep_cmd(caseSensitive, recursive, showLines, matchWholeWord);
-        VLOG(1, debugMode) << "Searching for pattern: " << pattern;
         AtomicStack<std::filesystem::path, PathValidator> fileStack;
         AtomicStack<std::string> resultStack;
 
@@ -133,8 +139,10 @@ int main(int argc, char* argv[])
         consumer.join();
         printer.join();
 
-        VLOG(1, debugMode) << "All threads completed.";
-        VLOG(1, debugMode) << "Search completed.";
+        if (debugMode) {
+            std::cout << "All threads completed." << std::endl;
+            std::cout << "Search completed." << std::endl;
+        }
         return 0;
     }
     catch(const std::exception& e)
