@@ -5,6 +5,11 @@
 #include <sstream>
 #include <algorithm>
 #include <regex>
+#include <thread>
+#include <vector>
+#include <atomic>
+#include <mutex>
+#include <future>
 #include "../include/grep.h"
 #include "grep.h"
 #include "../include/atomic_stack.h"
@@ -63,28 +68,76 @@ void grep::traverseFiles(const std::filesystem::path& directoryPath, AtomicStack
     }
 }
 
-void grep::searchInFile(const std::filesystem::path& filePath, const std::string& pattern, AtomicStack<std::string>& resultStack)
-{
+struct ChunkInfo {
+    size_t start;
+    size_t end;
+    int startLineNumber;
+};
+
+std::vector<ChunkInfo> splitFileIntoChunks(const std::filesystem::path& filePath, size_t numChunks) {
+    std::ifstream file(filePath, std::ios::ate | std::ios::binary);
+    if (!file.is_open()) {
+        return {};
+    }
+
+    size_t fileSize = file.tellg();
+    size_t chunkSize = fileSize / numChunks;
+    std::vector<ChunkInfo> chunks;
+    chunks.reserve(numChunks);
+
+    // Find line boundaries for each chunk
+    file.seekg(0);
+    std::string line;
+    size_t currentPos = 0;
+    int currentLine = 1;
+
+    for (size_t i = 0; i < numChunks; i++) {
+        ChunkInfo chunk;
+        chunk.start = currentPos;
+        chunk.startLineNumber = currentLine;
+
+        // Move to the next chunk boundary
+        size_t targetPos = (i + 1) * chunkSize;
+        if (i == numChunks - 1) {
+            targetPos = fileSize; // Last chunk goes to end of file
+        }
+
+        // Find the next newline after the chunk boundary
+        file.seekg(targetPos);
+        std::getline(file, line);
+        currentPos = file.tellg();
+        currentLine += std::count(line.begin(), line.end(), '\n') + 1;
+
+        chunk.end = currentPos;
+        chunks.push_back(chunk);
+    }
+
+    return chunks;
+}
+
+void grep::processChunk(const std::filesystem::path& filePath, 
+                       const ChunkInfo& chunk,
+                       const std::string& pattern,
+                       AtomicStack<std::string>& resultStack) {
     std::ifstream file(filePath);
     if (!file.is_open()) {
-        std::cerr << "Could not open file: " << filePath << std::endl;
         return;
     }
 
-    // Set a larger buffer size for better performance with large files
-    constexpr size_t BUFFER_SIZE = 1024 * 1024;  // 1MB buffer for large files
+    // Set buffer size for better performance
+    constexpr size_t BUFFER_SIZE = 1024 * 1024;  // 1MB buffer
     std::vector<char> buffer(BUFFER_SIZE);
-    if (!file.rdbuf()->pubsetbuf(buffer.data(), BUFFER_SIZE)) {
-        std::cerr << "Warning: Failed to set buffer size for " << filePath << std::endl;
-    }
+    file.rdbuf()->pubsetbuf(buffer.data(), BUFFER_SIZE);
 
+    // Seek to chunk start
+    file.seekg(chunk.start);
+    
     std::string line;
-    line.reserve(4096);  // Reserve more space for potentially long lines
-    int lineNumber = 1;
-    size_t totalBytesRead = 0;
-    const size_t progressInterval = 100 * 1024 * 1024; // Report progress every 100MB
+    line.reserve(4096);  // Reserve space for potentially long lines
+    int lineNumber = chunk.startLineNumber;
 
-    while (std::getline(file, line)) {
+    // Read until chunk end
+    while (file.tellg() < chunk.end && std::getline(file, line)) {
         if (search(line, pattern)) {
             std::ostringstream ss;
             ss << filePath << ": ";
@@ -94,9 +147,45 @@ void grep::searchInFile(const std::filesystem::path& filePath, const std::string
             resultStack.push(Message<std::string>{ss.str()});
         }
         lineNumber++;
-        line.clear();  // Clear the line buffer to free memory
+        line.clear();
+    }
+}
+
+void grep::searchInFile(const std::filesystem::path& filePath, const std::string& pattern, AtomicStack<std::string>& resultStack)
+{
+    // Get file size
+    std::error_code ec;
+    auto fileSize = std::filesystem::file_size(filePath, ec);
+    if (ec) {
+        std::cerr << "Error getting file size: " << filePath << " - " << ec.message() << std::endl;
+        return;
     }
 
-    file.close();
+    // Determine number of chunks based on file size
+    constexpr size_t CHUNK_SIZE = 100 * 1024 * 1024; // 100MB chunks
+    size_t numChunks = std::max(1ULL, fileSize / CHUNK_SIZE);
+    numChunks = std::min(numChunks, static_cast<size_t>(std::thread::hardware_concurrency()));
+
+    // Split file into chunks
+    auto chunks = splitFileIntoChunks(filePath, numChunks);
+    if (chunks.empty()) {
+        std::cerr << "Error splitting file into chunks: " << filePath << std::endl;
+        return;
+    }
+
+    // Process chunks using std::async
+    std::vector<std::future<void>> futures;
+    futures.reserve(chunks.size());
+
+    for (const auto& chunk : chunks) {
+        futures.push_back(std::async(std::launch::async, [this, &filePath, &chunk, &pattern, &resultStack]() {
+            processChunk(filePath, chunk, pattern, resultStack);
+        }));
+    }
+
+    // Wait for all tasks to complete
+    for (auto& future : futures) {
+        future.wait();
+    }
 }
 

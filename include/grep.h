@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <filesystem>
+#include <future>
 #include "../include/atomic_stack.h"
 
 class grep
@@ -21,4 +22,10 @@ private:
     bool m_showLines;
     bool m_invertMatch;
     bool m_matchWholeWord;
+
+    // Helper method for parallel processing
+    void processChunk(const std::filesystem::path& filePath, 
+                     const struct ChunkInfo& chunk,
+                     const std::string& pattern,
+                     AtomicStack<std::string>& resultStack);
 };
