@@ -66,24 +66,26 @@ void grep::traverseFiles(const std::filesystem::path& directoryPath, AtomicStack
 void grep::searchInFile(const std::filesystem::path& filePath, const std::string& pattern, AtomicStack<std::string>& resultStack)
 {
     std::ifstream file(filePath);
-    if (!file.is_open())
-    {
+    if (!file.is_open()) {
         std::cerr << "Could not open file: " << filePath << std::endl;
         return;
     }
 
-    // Set a larger buffer size for better performance
-    constexpr size_t bufferSize = 8192;  // 8KB buffer
-    std::vector<char> buffer(bufferSize);
-    file.rdbuf()->pubsetbuf(buffer.data(), bufferSize);
+    // Set a larger buffer size for better performance with large files
+    constexpr size_t BUFFER_SIZE = 1024 * 1024;  // 1MB buffer for large files
+    std::vector<char> buffer(BUFFER_SIZE);
+    if (!file.rdbuf()->pubsetbuf(buffer.data(), BUFFER_SIZE)) {
+        std::cerr << "Warning: Failed to set buffer size for " << filePath << std::endl;
+    }
 
     std::string line;
+    line.reserve(4096);  // Reserve more space for potentially long lines
     int lineNumber = 1;
+    size_t totalBytesRead = 0;
+    const size_t progressInterval = 100 * 1024 * 1024; // Report progress every 100MB
 
-    while (std::getline(file, line))
-    {
-        if (search(line, pattern))
-        {
+    while (std::getline(file, line)) {
+        if (search(line, pattern)) {
             std::ostringstream ss;
             ss << filePath << ": ";
             if(m_showLines)
@@ -92,6 +94,7 @@ void grep::searchInFile(const std::filesystem::path& filePath, const std::string
             resultStack.push(Message<std::string>{ss.str()});
         }
         lineNumber++;
+        line.clear();  // Clear the line buffer to free memory
     }
 
     file.close();
