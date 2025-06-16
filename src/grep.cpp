@@ -136,6 +136,11 @@ void grep::processChunk(const std::filesystem::path& filePath,
     line.reserve(4096);  // Reserve space for potentially long lines
     int lineNumber = chunk.startLineNumber;
 
+    // Local buffer for results
+    constexpr size_t LOCAL_BUFFER_SIZE = 100;  // Buffer 100 results before pushing to shared stack
+    std::vector<std::string> localResults;
+    localResults.reserve(LOCAL_BUFFER_SIZE);
+
     // Read until chunk end
     while (file.tellg() < chunk.end && std::getline(file, line)) {
         if (search(line, pattern)) {
@@ -144,10 +149,25 @@ void grep::processChunk(const std::filesystem::path& filePath,
             if(m_showLines)
                 ss << "line " << lineNumber << ": ";
             ss << line;
-            resultStack.push(Message<std::string>{ss.str()});
+            
+            // Add to local buffer
+            localResults.push_back(ss.str());
+
+            // If local buffer is full, push all results to shared stack
+            if (localResults.size() >= LOCAL_BUFFER_SIZE) {
+                for (const auto& result : localResults) {
+                    resultStack.push(Message<std::string>{result});
+                }
+                localResults.clear();
+            }
         }
         lineNumber++;
         line.clear();
+    }
+
+    // Push any remaining results
+    for (const auto& result : localResults) {
+        resultStack.push(Message<std::string>{result});
     }
 }
 
