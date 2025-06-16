@@ -47,7 +47,7 @@ bool grep::search(const std::string& inputLine, const std::string& pattern)
     return false;
 }
 
-void grep::traverseFiles(const std::filesystem::path& directoryPath, AtomicStack& fileStack)
+void grep::traverseFiles(const std::filesystem::path& directoryPath, AtomicStack<std::filesystem::path>& fileStack)
 {
     auto it = std::filesystem::recursive_directory_iterator(directoryPath);
     if (!m_recursive)
@@ -58,35 +58,42 @@ void grep::traverseFiles(const std::filesystem::path& directoryPath, AtomicStack
     {
         if (entry.is_regular_file())
         {
-            fileStack.push(message{entry.path()});
+            fileStack.push(Message<std::filesystem::path>{entry.path()});
         }
     }
 }
 
-std::vector<std::string> grep::searchInFile(const std::filesystem::path& filePath, const std::string& pattern)
+void grep::searchInFile(const std::filesystem::path& filePath, const std::string& pattern, AtomicStack<std::string>& resultStack)
 {
-    auto result = std::vector<std::string>{};
     std::ifstream file(filePath);
     if (!file.is_open())
     {
         std::cerr << "Could not open file: " << filePath << std::endl;
-        return result;
+        return;
     }
+
+    // Set a larger buffer size for better performance
+    constexpr size_t bufferSize = 8192;  // 8KB buffer
+    std::vector<char> buffer(bufferSize);
+    file.rdbuf()->pubsetbuf(buffer.data(), bufferSize);
+
     std::string line;
     int lineNumber = 1;
+
     while (std::getline(file, line))
     {
         if (search(line, pattern))
         {
             std::ostringstream ss;
-            ss << filePath << ": " << line << std::endl;
+            ss << filePath << ": ";
             if(m_showLines)
-                ss << " -line ::" << lineNumber << std::endl;
-            result.push_back(ss.str());
+                ss << "line " << lineNumber << ": ";
+            ss << line;
+            resultStack.push(Message<std::string>{ss.str()});
         }
         lineNumber++;
     }
+
     file.close();
-    return result;
 }
 

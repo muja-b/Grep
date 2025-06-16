@@ -1,5 +1,6 @@
 #include "../include/grep.h"
 #include "../include/atomic_stack.h"
+#include "../include/path_validator.h"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -21,7 +22,7 @@ int main(int argc, char* argv[])
     // Force output buffering
     std::cout.setf(std::ios::unitbuf);
     std::cerr.setf(std::ios::unitbuf);
-    google::InitGoogleLogging(argv[0]);
+    // google::InitGoogleLogging(argv[0]);
     
     cxxopts::Options options("grep", "Search for a pattern in a file or directory");
     options.add_options()
@@ -65,7 +66,8 @@ int main(int argc, char* argv[])
         VLOG(1, debugMode) << "Creating grep command...";
         grep grep_cmd(caseSensitive, recursive, showLines, matchWholeWord);
         VLOG(1, debugMode) << "Searching for pattern: " << pattern;
-        AtomicStack fileStack;
+        AtomicStack<std::filesystem::path, PathValidator> fileStack;
+        AtomicStack<std::string> resultStack;
 
         // Producer thread: traverse files and push to stack
         std::thread producer([&] {
@@ -73,25 +75,65 @@ int main(int argc, char* argv[])
                 grep_cmd.traverseFiles(d, fileStack);
             }
             // Signal consumer to stop (poison pill)
-            fileStack.push({"", true});
+            fileStack.push(Message<std::filesystem::path>{"", true});
         });
 
         // Consumer thread: pop files and search
         std::thread consumer([&] {
             while (true) {
                 auto msgOpt = fileStack.pop();
-                if (!msgOpt.has_value() || msgOpt->self_destruct) break;
-                auto fileResults = grep_cmd.searchInFile(msgOpt->value, pattern);
-                for (const auto& line : fileResults) {
-                    std::cout << line << std::endl;
+                if (!msgOpt.has_value() || msgOpt->self_destruct) {
+                    // Signal printer to stop
+                    resultStack.push(Message<std::string>{"", true});
+                    break;
                 }
+                grep_cmd.searchInFile(msgOpt->value, pattern, resultStack);
+            }
+        });
+
+        // Printer thread: pop results and print them
+        std::thread printer([&] {
+            constexpr size_t BUFFER_SIZE = 1000;  // Buffer 1000 results before flushing
+            std::vector<std::string> outputBuffer;
+            outputBuffer.reserve(BUFFER_SIZE);
+            
+            try {
+                while (true) {
+                    auto resultOpt = resultStack.pop();
+                    if (!resultOpt.has_value() || resultOpt->self_destruct) {
+                        // Flush any remaining results
+                        if (!outputBuffer.empty()) {
+                            for (const auto& result : outputBuffer) {
+                                std::cout << result << std::endl;
+                            }
+                            outputBuffer.clear();
+                        }
+                        break;
+                    }
+
+                    // Add result to buffer
+                    outputBuffer.push_back(resultOpt->value);
+
+                    // Flush buffer if it's full
+                    if (outputBuffer.size() >= BUFFER_SIZE) {
+                        for (const auto& result : outputBuffer) {
+                            std::cout << result << std::endl;
+                        }
+                        outputBuffer.clear();
+                    }
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "Error in printer thread: " << e.what() << std::endl;
+                // Signal other threads to stop
+                resultStack.push(Message<std::string>{"", true});
             }
         });
 
         producer.join();
         consumer.join();
+        printer.join();
 
-        VLOG(1, debugMode) << "Producer and consumer threads completed.";
+        VLOG(1, debugMode) << "All threads completed.";
         VLOG(1, debugMode) << "Search completed.";
         return 0;
     }
